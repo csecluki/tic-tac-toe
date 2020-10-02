@@ -1,319 +1,350 @@
 import pygame
 from tkinter import *
-
-
-class Grid:
-
-    def __init__(self):
-        self.board = [[0] * 3 for i in range(3)]
-        self.win_combinations = [[(0, 0), (0, 1), (0, 2)],
-                                 [(1, 0), (1, 1), (1, 2)],
-                                 [(2, 0), (2, 1), (2, 2)],
-                                 [(0, 0), (1, 0), (2, 0)],
-                                 [(0, 1), (1, 1), (2, 1)],
-                                 [(0, 2), (1, 2), (2, 2)],
-                                 [(0, 0), (1, 1), (2, 2)],
-                                 [(2, 0), (1, 1), (0, 2)],
-                                 ]
-
-    def check_click(self, x, y):
-        if self.board[x][y] != 0:
-            return False
-        return True
-
-    def choose(self, x, y, player):
-        if player.name == "cross":
-            self.board[x][y] = 1
-        else:
-            self.board[x][y] = 2
-        draw_window()
-
-    def win_check(self):
-        for i in self.win_combinations:
-            if self.board[i[0][0]][i[0][1]] == self.board[i[1][0]][i[1][1]] == self.board[i[2][0]][i[2][1]]:
-                if self.board[i[0][0]][i[0][1]] == 1:
-                    return 1
-                if self.board[i[0][0]][i[0][1]] == 2:
-                    return 2
-        for i in range(3):
-            for j in range(3):
-                if self.board[i][j] == 0:
-                    return 0
-        return 3
-
-    def restart(self):
-        self.board = [[0] * 3 for i in range(3)]
-
-
-class Player:
-    def __init__(self, name, char, info, win):
-        self.name = name
-        self.char = char
-        self.wins = 0
-        self.info = info
-        self.win = win
-
-
-class Option:
-
-    def __init__(self, x_cor, y_cor, width, height, text=""):
-        self.x = x_cor
-        self.y = y_cor
-        self.w = width
-        self.h = height
-        self.t = text
-
-    def draw(self):
-        pygame.draw.rect(window, (255, 255, 255), (self.x - 2, self.y - 2, self.w, self.h), 2)
-        if self.t != "":
-            text = font_bold.render(self.t, 1, (255, 255, 255))
-            window.blit(text, (self.x + (self.w / 2 - text.get_width() / 2),
-                               self.y + (self.h / 2 - text.get_height() / 2)))
-
+import minimax
 
 pygame.init()
-screen_x = 720
-screen_y = 480
-window = pygame.display.set_mode((screen_x, screen_y))
 pygame.display.set_caption("Tic-Tac-Toe")
-cross_image = pygame.image.load("cross.png")
-circle_image = pygame.image.load("circle.png")
-font = pygame.font.SysFont("calibri", 28)
-font_bold = pygame.font.SysFont("calibri", 24, True)
-font_2 = pygame.font.SysFont("calibri", 48, True)
-restart_button = Option(400, 350, 100, 50, "Restart")
-new_game_button = Option(520, 350, 150, 50, "New Game")
-result_label = font_bold.render("CROSS   :   CIRCLE", 1, (255, 255, 255))
-continue_label = font.render("Click anywhere to continue", True, (255, 255, 255))
-game = Grid()
+
+SCREEN_X = 720
+SCREEN_Y = 480
+CROSS_IMAGE = pygame.image.load("graphics/cross.png")
+CIRCLE_IMAGE = pygame.image.load("graphics/circle.png")
+FONT_NORMAL = pygame.font.SysFont("helvetica", 28)
+FONT_BOLD = pygame.font.SysFont("helvetica", 24, True)
+FONT_BOLD_BIGGER = pygame.font.SysFont("helvetica", 48, True)
+RESULT_LABEL = FONT_BOLD.render("CROSS   :   CIRCLE", 1, (255, 255, 255))
+CONTINUE_LABEL = FONT_BOLD.render("Click anywhere to continue", 1, (255, 255, 255))
 
 
-def draw_window():
-    global game
-    window.fill((0, 0, 0))
-    pygame.draw.line(window, (255, 255, 255), (150, 50), (150, 350), 6)
-    pygame.draw.line(window, (255, 255, 255), (250, 50), (250, 350), 6)
-    pygame.draw.line(window, (255, 255, 255), (50, 150), (350, 150), 6)
-    pygame.draw.line(window, (255, 255, 255), (50, 250), (350, 250), 6)
-    restart_button.draw()
-    new_game_button.draw()
-    window.blit(result_label, ((350 + (screen_x - 350 - result_label.get_width()) / 2), 50))
-    window.blit((font_2.render(str(cross.wins), 1, (255, 255, 255))), (475, 90))
-    window.blit((font_2.render(str(circle.wins), 1, (255, 255, 255))), (575, 90))
-    for i in range(len(game.board)):
-        for j in range(len(game.board[i])):
-            if game.board[i][j] == 1:
-                window.blit(cross_image, (50 + 100 * i, 50 + 100 * j))
-            elif game.board[i][j] == 2:
-                window.blit(circle_image, (50 + 100 * i, 50 + 100 * j))
-    pygame.display.update()
+class Window:
+
+    def __init__(self):
+
+        self.frame = pygame.display.set_mode((SCREEN_X, SCREEN_Y))
+        self.restart_button = Option(400, 350, 100, 50, "Restart")
+        self.new_game_button = Option(520, 350, 150, 50, "New Game")
+
+        self.start_new_game()
+
+    def start_new_game(self):
+        self.board = Board()
+        self.cross = Player("cross", CROSS_IMAGE, "Cross' turn", "Cross wins!!!")
+        self.circle = Player("circle", CIRCLE_IMAGE, "Circle's turn", "Circle wins!!!")
+
+        self.starting_player = self.cross
+        self.current_turn = self.cross
+
+        self.win_limit, self.ai_player = intro()
+
+        if self.win_limit is not None:
+            self.play()
+        else:
+            quit()
+
+    def draw(self):
+        self.frame.fill((0, 0, 0))
+        self.board.draw(self.frame)
+        self.restart_button.draw(self.frame)
+        self.new_game_button.draw(self.frame)
+        self.frame.blit(RESULT_LABEL, ((350 + (SCREEN_X - 350 - RESULT_LABEL.get_width()) / 2), 50))
+        self.frame.blit((FONT_BOLD_BIGGER.render(str(self.cross.games_won), 1, (255, 255, 255))), (455, 90))
+        self.frame.blit((FONT_BOLD_BIGGER.render(str(self.circle.games_won), 1, (255, 255, 255))), (585, 90))
+        pygame.display.update()
+
+    def play(self):
+        self.draw()
+        while True:
+            turn_info = FONT_NORMAL.render(self.current_turn.turn_info, 1, (255, 255, 255))
+            self.frame.blit(turn_info, ((350 + (SCREEN_X - 350 - turn_info.get_width()) / 2), 190))
+            pygame.display.update()
+
+            if self.ai_player and self.current_turn == self.circle:
+                x, y = minimax.bestscore(self.board.grid)
+                self.board.handle_move(x, y, self.current_turn)
+                self.draw()
+                move_result = self.board.give_result_of_game()
+                if move_result == "continue":
+                    self.change_player()
+                elif move_result == "win":
+                    self.current_turn.games_won += 1
+                    self.draw()
+                    if self.current_turn.games_won == self.win_limit:
+                        self.outro()
+                        self.click_to_continue()
+                        self.start_new_game()
+                    self.click_to_continue()
+                    self.next_game()
+                elif move_result == "draw":
+                    self.click_to_continue()
+                    self.next_game()
+
+            else:
+                for event in pygame.event.get():
+                    if event.type == pygame.QUIT:
+                        quit()
+
+                    if event.type == pygame.MOUSEBUTTONUP:
+                        pos_x, pos_y = pygame.mouse.get_pos()
+
+                        if self.restart_button.x <= pos_x <= self.restart_button.x + self.restart_button.w and \
+                                self.restart_button.y <= pos_y <= self.restart_button.y + self.restart_button.h:
+                            self.board.restart()
+                            self.current_turn = self.starting_player
+                            self.draw()
+                            continue
+
+                        if self.new_game_button.x <= pos_x <= self.new_game_button.x2 and \
+                                self.new_game_button.y <= pos_y <= self.new_game_button.y2:
+                            self.start_new_game()
+
+                        if 50 <= pos_x < 350 and 50 <= pos_y < 350:
+                            # changing click coordinates to position on board
+                            x = (pos_x - 50) // 100
+                            y = (pos_y - 50) // 100
+
+                            self.board.handle_move(x, y, self.current_turn)
+                            self.draw()
+                            move_result = self.board.give_result_of_game()
+                            if move_result == "continue":
+                                self.change_player()
+                            elif move_result == "win":
+                                self.current_turn.games_won += 1
+                                self.draw()
+                                if self.current_turn.games_won == self.win_limit:
+                                    self.outro()
+                                    self.click_to_continue()
+                                    self.start_new_game()
+                                self.click_to_continue()
+                                self.next_game()
+                            elif move_result == "draw":
+                                self.click_to_continue()
+                                self.next_game()
+
+    def change_player(self):
+        if self.current_turn == self.cross:
+            self.current_turn = self.circle
+        else:
+            self.current_turn = self.cross
+
+    def next_game(self):
+        self.board.restart()
+        if self.starting_player == self.cross:
+            self.starting_player = self.circle
+            self.current_turn = self.circle
+        else:
+            self.starting_player = self.cross
+            self.current_turn = self.cross
+        self.draw()
+
+    def click_to_continue(self):
+        self.frame.blit(CONTINUE_LABEL, (40, 400))
+        pygame.display.update()
+        stop = True
+        while stop:
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    quit()
+                if event.type == pygame.MOUSEBUTTONUP:
+                    stop = False
+
+    def outro(self):
+        label = FONT_BOLD_BIGGER.render(self.current_turn.win_info, 1, (255, 255, 255))
+        self.frame.blit(label, ((350 + (SCREEN_X - 350 - label.get_width()) / 2), 270))
+        pygame.display.update()
 
 
 def intro():
-    x = 0
-    ai = False
+    ai = None
+    limit = None
 
-    def go():
-        nonlocal x, ai
-        x = int(number.get())
+    def return_values():
+        nonlocal ai, limit
+        ai = ai_player.get()
+        limit = int(number.get())
         tk.destroy()
-        if var1.get():
-            ai = True
-        return x, ai
 
     tk = Tk()
     tk.geometry("350x200")
     tk.title("TIC-TAC-TOE")
-    var1 = IntVar()
+
+    ai_player = IntVar()
 
     welcome = Label(tk, text="Welcome to TIC-TAC-TOE!", font=("Calibri", 14))
     welcome.pack(pady=25)
 
     choose_frame = Frame(tk)
+
     quantity = Label(choose_frame, text="Choose number of games to win the match:")
     quantity.grid(row=0, column=1, padx=5)
+
     number = Spinbox(choose_frame, from_=1, to=20, width=3)
     number.grid(row=0, column=2, padx=5)
-    is_ai = Checkbutton(choose_frame, text="Second player as AI", variable=var1)
+
+    is_ai = Checkbutton(choose_frame, text="Second player as AI", variable=ai_player, onvalue=1, offvalue=0)
     is_ai.grid(row=1, column=1, padx=5)
+
     choose_frame.pack(pady=5)
 
     button_frame = Frame(tk)
-    ok_button = Button(button_frame, text="OK", command=go)
+
+    ok_button = Button(button_frame, text="OK", command=return_values)
     ok_button.grid(row=3, column=0, padx=20)
-    cancel_button = Button(button_frame, text="Cancel", command=tk.destroy)
+
+    cancel_button = Button(button_frame, text="Cancel", command=quit)
     cancel_button.grid(row=3, column=3, padx=20)
+
     button_frame.pack(pady=15)
 
     tk.mainloop()
-    return [x, ai]
+
+    return limit, ai
 
 
-def outro(player):
-    label = font_2.render(player.win, 1, (255, 255, 255))
-    window.blit(label, ((350 + (screen_x - 350 - label.get_width()) / 2), 270))
-    pygame.display.update()
-    click_to_continue()
-    main()
+class Board:
 
+    def __init__(self):
+        self.grid = [[0] * 3 for i in range(3)]
 
-def click_to_continue():
-    global run
-    wait = True
-    window.blit(continue_label, (40, 400))
-    pygame.display.update()
-    while wait:
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                run = False
-                wait = False
-            if event.type == pygame.MOUSEBUTTONUP:
-                wait = False
+        self.win_combinations = [
+            [(0, 0), (0, 1), (0, 2)],
+            [(1, 0), (1, 1), (1, 2)],
+            [(2, 0), (2, 1), (2, 2)],
+            [(0, 0), (1, 0), (2, 0)],
+            [(0, 1), (1, 1), (2, 1)],
+            [(0, 2), (1, 2), (2, 2)],
+            [(0, 0), (1, 1), (2, 2)],
+            [(2, 0), (1, 1), (0, 2)],
+        ]
 
+        self.lines = (
+            ((255, 255, 255), (150, 50), (150, 350), 6),
+            ((255, 255, 255), (250, 50), (250, 350), 6),
+            ((255, 255, 255), (50, 150), (350, 150), 6),
+            ((255, 255, 255), (50, 250), (350, 250), 6)
+        )
 
-def main():
-    global games, run, cross, circle, game
+    def draw(self, frame):
+        for line in self.lines:
+            pygame.draw.line(frame, *line)
+        for i in range(len(self.grid)):
+            for j in range(len(self.grid[i])):
+                if self.grid[i][j] == 1:
+                    frame.blit(CROSS_IMAGE, (50 + 100 * i, 50 + 100 * j))
+                elif self.grid[i][j] == 2:
+                    frame.blit(CIRCLE_IMAGE, (50 + 100 * i, 50 + 100 * j))
 
-    def bestscore():
+    def handle_move(self, x, y, player):
+        if self.check_click(x, y):
+            self.choose(x, y, player)
+
+    def check_click(self, x, y):
+        if self.grid[x][y] != 0:
+            return False
+        return True
+
+    def choose(self, x, y, player):
+        if player.name == "cross":
+            self.grid[x][y] = 1
+        else:
+            self.grid[x][y] = 2
+
+    def give_result_of_game(self, name=False):
+        # current player won
+        for i in self.win_combinations:
+            if self.grid[i[0][0]][i[0][1]] == self.grid[i[1][0]][i[1][1]] == self.grid[i[2][0]][i[2][1]] != 0:
+                if name:
+                    if self.grid[i[0][0]][i[0][1]] == 1:
+                        return "cross"
+                    else:
+                        return "circle"
+                return "win"
+
+        # there is at least one empty field on board - game continues
+        for i in range(3):
+            for j in range(3):
+                if self.grid[i][j] == 0:
+                    return "continue"
+        # draw
+        return "draw"
+
+    def restart(self):
+        self.grid = [[0] * 3 for i in range(3)]
+
+    def undo_move(self, x, y):
+        self.grid[x][y] = 0
+
+    def bestscore(self, players):
         optimal = -100
-        s = 0
         x = 0
         y = 0
         for i in range(3):
             for j in range(3):
-                if game.board[i][j] == 0:
-                    game.board[i][j] = 2
-                    score = minmax(game, 0, False)
-                    game.board[i][j] = 0
+                if self.check_click(i, j):
+                    print(i, j)
+                    self.choose(i, j, players[1])
+                    score = self.minmax(0, False, players)
+                    self.undo_move(i, j)
                     if score > optimal:
                         optimal = score
                         x = i
                         y = j
         return x, y
 
-    def minmax(board, depth, ismax):
-        result = game.win_check()
-        if result == 1:
+    def minmax(self, depth, ismax, players):
+        result = self.give_result_of_game(name=True)
+        print(result)
+        if result == "cross":
             return -1
-        if result == 2:
+        if result == "circle":
             return 1
-        if result == 3:
+        if result == "draw":
             return 0
-
-        if ismax:
-            optimal = -100
-            for i in range(3):
-                for j in range(3):
-                    if game.board[i][j] == 0:
-                        game.board[i][j] = 2
-                        score = minmax(game.board, depth + 1, False)
-                        game.board[i][j] = 0
-                        optimal = max(score, optimal)
-            return optimal
-        else:
-            optimal = 100
-            for i in range(3):
-                for j in range(3):
-                    if game.board[i][j] == 0:
-                        game.board[i][j] = 1
-                        score = minmax(game.board, depth + 1, True)
-                        game.board[i][j] = 0
+        if result == "continue":
+            if ismax:
+                optimal = -100
+                for i in range(3):
+                    for j in range(3):
+                        if self.check_click(i, j):
+                            self.choose(i, j, players[1])
+                            score = self.minmax(0, False, players)
+                            self.undo_move(i, j)
+                            optimal = max(score, optimal)
+                return optimal
+            else:
+                optimal = 100
+                for i in range(3):
+                    for j in range(3):
+                        self.handle_move(i, j, players[0])
+                        score = self.minmax(0, False, players)
+                        self.undo_move(i, j)
                         optimal = min(score, optimal)
-            return optimal
-
-    def play(starting, turn):
-        global run
-        end = False
-        while run:
-            info = font.render(turn.info, 1, (255, 255, 255))
-            window.blit(info, ((350 + (screen_x - 350 - info.get_width()) / 2), 170))
-            pygame.display.update()
-
-            for event in pygame.event.get():
-                if event.type == pygame.QUIT:
-                    run = False
-
-                if event.type == pygame.MOUSEBUTTONUP:
-                    pos = pygame.mouse.get_pos()
-
-                    if restart_button.x <= pos[0] <= restart_button.x + restart_button.w and \
-                            restart_button.y <= pos[1] <= restart_button.y + restart_button.h:
-                        game.board = [[0] * 3 for i in range(3)]
-                        draw_window()
-                        play(starting, starting)
-
-                    if new_game_button.x <= pos[0] <= new_game_button.x + new_game_button.w and \
-                            new_game_button.y <= pos[1] <= new_game_button.y + new_game_button.h:
-                        game.restart()
-                        main()
-
-                    if 50 <= pos[0] < 350 and 50 <= pos[1] < 350:
-                        x = (pos[0] - 50) // 100
-                        y = (pos[1] - 50) // 100
-                        if game.check_click(x, y):
-                            game.choose(x, y, turn)
-                            draw_window()
-                            result = game.win_check()
-                            if result == 1 or result == 2:
-                                turn.wins += 1
-                                if turn.wins != games[0]:
-                                    game.restart()
-                                    click_to_continue()
-                                    draw_window()
-                                    if starting == cross:
-                                        play(circle, circle)
-                                    else:
-                                        play(cross, cross)
-                                else:
-                                    outro(turn)
-                            elif result == 3:
-                                click_to_continue()
-                                game.restart()
-                                draw_window()
-                            if turn == cross:
-                                play(starting, circle)
-                            else:
-                                play(starting, cross)
-
-            if ai_player and turn == circle:
-                game.choose(bestscore()[0], bestscore()[1], circle)
-                draw_window()
-                result = game.win_check()
-                if result == 0:
-                    play(starting, cross)
-                elif result == 2:
-                    circle.wins += 1
-                    game.restart()
-                    if turn.wins != games[0]:
-                        click_to_continue()
-                        draw_window()
-                        if starting == cross:
-                            play(circle, circle)
-                        else:
-                            play(cross, cross)
-                    else:
-                        outro(turn)
-                else:
-                    click_to_continue()
-                    game.restart()
-                    draw_window()
-                if turn == cross:
-                    play(starting, circle)
-                else:
-                    play(starting, cross)
-
-    window.fill((0, 0, 0))
-    pygame.display.update()
-    run = False
-    games = intro()
-    cross = Player("cross", cross_image, "Cross' turn", "Cross wins!!!")
-    circle = Player("circle", circle_image, "Circle's turn", "Circle wins!!!")
-    ai_player = games[1]
-    if games[0] > 0:
-        run = True
-        draw_window()
-        play(cross, cross)
-    pygame.quit()
+                return optimal
 
 
-main()
+class Player:
+
+    def __init__(self, name, image, turn_info, win_info):
+        self.name = name
+        self.image = image
+        self.games_won = 0
+        self.turn_info = turn_info
+        self.win_info = win_info
+
+
+class Option:
+
+    def __init__(self, x_cor, y_cor, width, height, text=""):
+        self.x = x_cor
+        self.x2 = x_cor + width
+        self.y = y_cor
+        self.y2 = y_cor + height
+        self.w = width
+        self.h = height
+        self.t = text
+
+    def draw(self, frame):
+        pygame.draw.rect(frame, (255, 255, 255), (self.x - 2, self.y - 2, self.w, self.h), 2)
+        if self.t != "":
+            text = FONT_BOLD.render(self.t, 1, (255, 255, 255))
+            frame.blit(text, (self.x + (self.w / 2 - text.get_width() / 2),
+                              self.y + (self.h / 2 - text.get_height() / 2)))
